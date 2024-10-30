@@ -154,8 +154,8 @@ void  ToLaserscanMessagePublish(ldlidar::Points2D& src, double lidar_spin_freq,
     sensor_msgs::LaserScan output;
     output.header.stamp = start_scan_time;
     output.header.frame_id = setting.frame_id;
-    output.angle_min = angle_min;
-    output.angle_max = angle_max;
+    output.angle_min = remainder(angle_min + M_PI, 2.*M_PI);
+    output.angle_max = remainder(angle_max + M_PI, 2.*M_PI);
     output.range_min = range_min;
     output.range_max = range_max;
     output.angle_increment = angle_increment;
