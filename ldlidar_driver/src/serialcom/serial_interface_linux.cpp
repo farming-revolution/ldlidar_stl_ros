@@ -105,15 +105,15 @@ bool SerialInterfaceLinux::Close() {
 
   rx_thread_exit_flag_ = true;
 
-  if (com_handle_ != -1) {
-    close(com_handle_);
-    com_handle_ = -1;
-  }
-
   if ((rx_thread_ != nullptr) && rx_thread_->joinable()) {
     rx_thread_->join();
     delete rx_thread_;
     rx_thread_ = nullptr;
+  }
+
+  if (com_handle_ != -1) {
+    close(com_handle_);
+    com_handle_ = -1;
   }
 
   is_cmd_opened_ = false;
