@@ -92,7 +92,9 @@ int main(int argc, char **argv) {
   ros::Publisher lidar_pub = 
       nh.advertise<sensor_msgs::LaserScan>(topic_name, 10);  // create a ROS topic
   
-  ros::Rate r(10); //10hz
+  // poll well above the 10 Hz spin rate, so a finished frame is published within 10 ms and never
+  // overwritten by the next one before it was read
+  ros::Rate r(100);
   ldlidar::Points2D laser_scan_points;
   double lidar_scan_freq;
   ROS_INFO("Publish topic message:ldlidar scan data .");
@@ -127,19 +129,20 @@ int main(int argc, char **argv) {
 void  ToLaserscanMessagePublish(ldlidar::Points2D& src, double lidar_spin_freq, 
     LaserScanSetting& setting, ros::Publisher& lidarpub) {
   float angle_min, angle_max, range_min, range_max, angle_increment;
-  float scan_time;
-  ros::Time start_scan_time;
-  static ros::Time end_scan_time;
-  static bool first_scan = true;
 
-  start_scan_time = ros::Time::now();
-  scan_time = (start_scan_time - end_scan_time).toSec();
-
-  if (first_scan) {
-    first_scan = false;
-    end_scan_time = start_scan_time;
+  if (src.size() < 2) {
     return;
   }
+  // the points are sorted by their system clock stamp, taken when their serial packet arrived
+  ros::Time first_point_time;
+  first_point_time.fromNSec(src.front().stamp);
+  ros::Time last_point_time;
+  last_point_time.fromNSec(src.back().stamp);
+  const float scan_time = static_cast<float>((last_point_time - first_point_time).toSec());
+  // the header stamp is the time of beam 0. counterclockwise reverses the beam order,
+  // so beam 0 is the last measured point and the beam times count backwards
+  const ros::Time start_scan_time = setting.laser_scan_dir ? last_point_time : first_point_time;
+  const float time_direction = setting.laser_scan_dir ? -1.f : 1.f;
 
   // Adjust the parameters according to the demand
   angle_min = 0;
@@ -162,7 +165,7 @@ void  ToLaserscanMessagePublish(ldlidar::Points2D& src, double lidar_spin_freq,
     if (beam_size <= 1) {
       output.time_increment = 0;
     } else {
-      output.time_increment = scan_time / (float)(beam_size - 1);
+      output.time_increment = time_direction * scan_time / (float)(beam_size - 1);
     }
     output.scan_time = scan_time;
     // First fill all the data with Nan
@@ -221,7 +224,6 @@ void  ToLaserscanMessagePublish(ldlidar::Points2D& src, double lidar_spin_freq,
       }
     }
     lidarpub.publish(output);
-    end_scan_time = start_scan_time;
   } 
 }
 
